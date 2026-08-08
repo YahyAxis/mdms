@@ -1,6 +1,4 @@
 """
-Pipeline Execution & Control Rack View
-Renders compact execution cards, 5 telemetry progress bars, live RingBuffer console,
 sys_runs history, force re-ingest, and database wipe controls with rich per-track live telemetry.
 """
 
