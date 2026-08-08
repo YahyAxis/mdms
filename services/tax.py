@@ -1,7 +1,5 @@
 """
-Flat-String Weighted Consensus Genre Resolver
-Uses direct O(1) in-memory consensus tracking and artist fallbacks to ensure 0 unclassified tracks.
-Optimized to execute bulk metadata updates in transaction-safe, chunked batches.
+Flats Weighted Consensus Genre Resolver
 """
 
 import re
