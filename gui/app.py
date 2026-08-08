@@ -1,7 +1,5 @@
 """
-Audio Engineer's Workbench Main Shell
-Features Tape-Reel Sidebar navigation, header status bar, collapsible bottom log drawer, 
-and 6 workspace stack routing. Updated to initialize and lifecycle-manage the background crawler daemon.
+Audio Workbench Main Shell
 """
 
 import sys
