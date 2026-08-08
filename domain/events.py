@@ -1,7 +1,5 @@
 """
 Domain Events & PySide6 Qt Signal Bridge
-Provides thread-safe event publishing and Qt signal dispatching across worker threads and GUI widgets.
-Updated to support real-time crawler telemetry signals.
 """
 
 import threading
