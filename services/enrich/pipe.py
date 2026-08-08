@@ -1,8 +1,5 @@
 """
-Stage B Canonical Enrichment Orchestration
-Fetches MusicBrainz, AcoustID, Deezer, Discogs, and Last.fm evidence via parallel workers,
-resolving metadata decisions directly into native database columns.
-Updated to trigger automatic owned-candidate (ACQUIRED) sweeps upon completion.
+Stage B Canonicaln.
 """
 
 import os
