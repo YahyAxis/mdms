@@ -1,7 +1,5 @@
 """
-Audio Fidelity & Consensus Label Analytics Center
-Provides high-density metrics, codec matrices, resolved tag profiles,
-geographic artist profiles, decades timelines, and an export manager.
+Analytics Center
 Loads all database metrics asynchronously in background threads to ensure 100% GUI responsiveness.
 """
 
@@ -110,7 +108,6 @@ class AnalyticsWorkspace(QWidget):
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(12)
 
-        # Title Header Bar
         header_row = QHBoxLayout()
         header = QLabel("ANALYTICS // LIBRARY AUDIO FIDELITY & DATA EXPORTER")
         header.setStyleSheet("font-family: 'Consolas', monospace; font-size: 11pt; font-weight: bold; color: #f59e0b;")
@@ -131,7 +128,6 @@ class AnalyticsWorkspace(QWidget):
 
         main_layout.addLayout(header_row)
 
-        # Global KPI Header Cards Row
         kpi_row = QHBoxLayout()
         self.card_tracks = MetricCard("TOTAL TRACKS", "--", "Active catalog items")
         self.card_playtime = MetricCard("TOTAL PLAYTIME", "--", "Cumulative duration")
@@ -146,7 +142,6 @@ class AnalyticsWorkspace(QWidget):
         kpi_row.addWidget(self.card_quality)
         main_layout.addLayout(kpi_row)
 
-        # Analytics Tab Container
         self.tabs = QTabWidget()
         main_layout.addWidget(self.tabs, stretch=1)
 
@@ -157,7 +152,6 @@ class AnalyticsWorkspace(QWidget):
         self._build_tab_data_vault()
         self._build_tab_export()
 
-        # Connect the asynchronous load handler
         self.analytics_loaded.connect(self._on_analytics_loaded)
 
         self.reload_analytics()
