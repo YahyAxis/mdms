@@ -1,9 +1,5 @@
 """
 Discovery Background Crawler Daemon
-Manages seed extraction from core_artists, schedules API crawlers, enforces 
-cooperative suspension during Ingestion/Enrichment, and filters new candidates 
-against target genres, active library caches, and live album blocklists.
-Updated with MusicBrainz Discography Expansion, Last.fm Similarity, and manual artist name-resolution handlers.
 """
 
 import time
