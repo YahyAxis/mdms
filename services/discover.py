@@ -1,9 +1,5 @@
 """
-Master Discovery Engine Backend & DSU Authority Graph Service
-Provides Disjoint-Set Union authority clustering, 3-character prefix-blocked library index caching,
-dynamic subgenre deficit calculation, artist saturation penalties, user fatigue decay,
-candidate snoozing, custom vector weight overrides, savepoint-safe database persistence, and Composite Candidate Scoring (CCS).
-Updated to index album titles in LocalLibraryIndexCache to prevent duplicate recommendations.
+Discovery Backend and DSU Authority Graph Service.
 """
 
 import json
