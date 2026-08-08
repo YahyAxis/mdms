@@ -1,7 +1,6 @@
 """
 External API Gateway Service
 Provides external provider API lookups (MusicBrainz, AcoustID, Discogs, Deezer, iTunes, Last.fm, Wikidata)
-with rate limiting, caching, health tracking, Lucene query sanitization, core title extraction, and multi-tier query relaxation.
 """
 
 import re
