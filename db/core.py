@@ -1,8 +1,6 @@
 """
-Database Core Engine & Transaction Infrastructure
-Provides PostgreSQL raw connection management, transaction coordination,
-schema initialisation, and administrative cleanup tasks.
-Updated to guarantee unconditional transaction commits for schema baseline.
+Database Core and Transaction Infrastructure
+
 """
 
 import threading
