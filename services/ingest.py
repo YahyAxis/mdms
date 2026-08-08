@@ -1,7 +1,7 @@
 """
 Stage A Local Ingestion Engine
-Handles parallel media file parsing, triple hashing, composite fast-pass cache matching,
-live Watchdog directory scanning, and direct column metadata resolution.
+Handles parallel media file parsing, triple hashing, composite fastp cache matching,
+live Watchdog directory scanning, and direct column metadata fixing.
 """
 
 import os
