@@ -1,17 +1,59 @@
-# ==========================================================================================
-# FILE: .gitignore
-# ==========================================================================================
-# Python artifacts
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-.eggs/
-build/
-dist/
-
-# Local workstation bins & caches
-.bin/
-data/
-.venv/
+# Private Configuration & Secrets (CRITICAL)
 .env
+
+# Python Caches and Virtual Environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# System & Executables
+.bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Audio Data & Media (Local raw data and logs)
+data/
+*.mp3
+*.flac
+*.wav
+*.m4a
+*.ogg
+
+# Distribution & Metadata
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
