@@ -1,6 +1,5 @@
 """
-Intra-Album Sibling Metadata Propagation Engine
-Propagates release-level and genre facts from high-quality donor tracks to sibling tracks while respecting field locks.
+Intra-Album Sibling Metadata Propagation.
 """
 
 from typing import Dict, Any, Optional, Set
