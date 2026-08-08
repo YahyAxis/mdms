@@ -14,10 +14,9 @@ from domain.events import signals, LogEvent
 from gui.styles import MASTER_DARK_AMBER_QSS
 from gui.widgets.console import RingBufferConsole
 
-# Import the background crawler daemon
 from services.crawl import BackgroundCrawlerDaemon
 
-# Import All 6 Production Workspace Views (No Taxonomy)
+# Import All 6 Production Workspace Views 
 from gui.views.analytics import AnalyticsWorkspace
 from gui.views.catalog import CatalogWorkspace
 from gui.views.ops import OperationsWorkspace
@@ -67,7 +66,6 @@ class MainWindow(QMainWindow):
         workspace_layout.setContentsMargins(0, 0, 0, 0)
         workspace_layout.setSpacing(0)
 
-        # Tape-Reel Sidebar (Compacted list of 6 flat-ontology workspace destinations)
         self.sidebar = QListWidget()
         self.sidebar.setObjectName("TapeReelSidebar")
         self.sidebar.setFixedWidth(220)
@@ -81,10 +79,8 @@ class MainWindow(QMainWindow):
         ])
         self.sidebar.currentRowChanged.connect(self._switch_workspace)
 
-        # Stack Initialization
         self.workspace_stack = QStackedWidget()
 
-        # Instantiate 6 Active Workspaces
         self.analytics_view = AnalyticsWorkspace()
         self.catalog_view = CatalogWorkspace()
         self.ops_view = OperationsWorkspace()
@@ -104,7 +100,6 @@ class MainWindow(QMainWindow):
 
         main_splitter.addWidget(top_container)
 
-        # Collapsible Bottom Console Drawer
         self.bottom_drawer = QFrame()
         self.bottom_drawer.setStyleSheet("background-color: #0c0c0e; border-top: 1px solid #222228;")
         drawer_layout = QVBoxLayout(self.bottom_drawer)
@@ -135,7 +130,6 @@ class MainWindow(QMainWindow):
         signals.log_emitted.connect(self._on_log_emitted)
         QTimer.singleShot(10, lambda: self.sidebar.setCurrentRow(0))
 
-        # Initialize and start the background crawler daemon thread
         self.crawler_daemon = BackgroundCrawlerDaemon()
         self.crawler_daemon.start()
 
