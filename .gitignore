@@ -21,6 +21,8 @@ env/
 *.dll
 *.so
 *.dylib
+COPY.py
+
 
 # Audio Data & Media (Local raw data and logs)
 data/
