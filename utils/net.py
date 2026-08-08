@@ -1,7 +1,6 @@
 """
 Network Transport & Edge Gateway
-Provides httpx connection pooling, token bucket rate limiting, circuit breakers,
-single-flight request coalescing, provider health tracking, and sys_payloads eviction.
+Provides httpx connection pooling, token bucket rate limiting and circuit breakers (currently using a cloudfire setting)
 """
 
 import os
