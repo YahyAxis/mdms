@@ -12,9 +12,7 @@ def main() -> None:
     init_db_schema()
     FastBootGuard.is_clean_boot()
     ensure_fpcalc()
-
-    # Move the GUI import inside the main function.
-    # This prevents child worker processes spawned by multiprocessing from loading PySide6 views.
+    
     from PySide6.QtWidgets import QApplication
     from gui.app import MainWindow
 
