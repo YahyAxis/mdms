@@ -1,6 +1,6 @@
 """
 Unified Native PostgreSQL Repositories
-Provides high-throughput data access operations for Recordings, Artists, Albums, Evidence, Discovery, and Sonic features.
+.
 """
 
 import json
