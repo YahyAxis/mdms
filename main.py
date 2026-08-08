@@ -1,6 +1,5 @@
 """
-MDMS Workstation Entry Point
-Protects child worker process instantiation on Windows and initializes schema parameters.
+Protects child worker process instantiatio and initializes stuff.
 """
 
 import sys
