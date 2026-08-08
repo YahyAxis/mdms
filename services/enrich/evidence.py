@@ -1,5 +1,5 @@
 """
-Evidence Buffer Infrastructure
+Evidence Buffer
 Manages in-memory buffering, session deduplication, and batch insertion of evidence rows into meta_evidence.
 """
 
