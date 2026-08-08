@@ -1,10 +1,5 @@
 """
-Discovery Crate GUI Workspace & Strategy Studio
-Provides recommendation candidate review cards, Composite Candidate Score (CCS) badges with uncertainty margins,
-expandable ANLRG visual explanation bars, debounced strategy sliders, candidate search filtering, and state filters.
-Optimized with high-density horizontal row cards, micro-sized three-letter action controls, dynamic crawler feedback loops,
-real-time dynamic genre-filtering, and an on-demand REFRESH button.
-Updated with smart dual-purpose crawl logic to automatically resolve and seed crawler queues by artist or genre.
+Discovery Crate GUI
 """
 
 import json
@@ -52,7 +47,6 @@ class CandidateCard(QFrame):
             }
         """)
 
-        # Main layout holds the horizontal row and the conditional vertical ANLRG pop-down
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(6, 4, 6, 4)
         main_layout.setSpacing(2)
@@ -62,7 +56,6 @@ class CandidateCard(QFrame):
         row_layout.setContentsMargins(0, 0, 0, 0)
         row_layout.setSpacing(8)
 
-        # 1. CCS Score Badge
         exp_data = json.loads(score_obj.explanation_json or "{}") if score_obj.explanation_json else {}
         margin = exp_data.get("uncertainty_margin", 0.040)
         
@@ -80,7 +73,6 @@ class CandidateCard(QFrame):
         """)
         row_layout.addWidget(lbl_ccs)
 
-        # 2. Artist & Release Info
         title_str = (candidate.title or "Untitled").upper()
         if candidate.release_year:
             title_str += f" ({candidate.release_year})"
@@ -89,14 +81,12 @@ class CandidateCard(QFrame):
         lbl_info.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 8.5pt;")
         row_layout.addWidget(lbl_info)
 
-        # 3. Genre Tag Badge
         lbl_genre = QLabel(f"[{candidate.primary_genre} / {candidate.primary_subgenre}]")
         lbl_genre.setStyleSheet("font-family: 'Consolas', monospace; font-size: 7.5pt; color: #828a9a;")
         row_layout.addWidget(lbl_genre)
 
         row_layout.addStretch()
 
-        # 4. Compact ANLRG Toggle
         self.btn_toggle_anlrg = QPushButton("[ANLRG]")
         self.btn_toggle_anlrg.setFixedSize(52, 18)
         self.btn_toggle_anlrg.setToolTip("Toggle advanced scoring breakdown matrix")
@@ -205,7 +195,6 @@ class CandidateCard(QFrame):
 
     def _on_accept(self) -> None:
         mark_candidate_state(self.candidate.candidate_id, CandidateState.QUEUED)
-        # Dynamic Feedback Loop: Boost priority of matching seeds in the crawling frontier (+0.25)
         try:
             conn = get_connection()
             with db_transaction() as tx:
@@ -223,7 +212,6 @@ class CandidateCard(QFrame):
 
     def _on_snooze(self) -> None:
         snooze_candidate(self.candidate.candidate_id, days=14)
-        # Dynamic Feedback Loop Penalty: Decrease priority slightly (-0.20)
         try:
             conn = get_connection()
             with db_transaction() as tx:
@@ -241,7 +229,6 @@ class CandidateCard(QFrame):
 
     def _on_ignore(self) -> None:
         mark_candidate_state(self.candidate.candidate_id, CandidateState.IGNORED)
-        # Dynamic Feedback Loop Penalty: Decay crawler priority significantly (-0.40)
         try:
             conn = get_connection()
             with db_transaction() as tx:
@@ -286,12 +273,10 @@ class DiscoveryWorkspace(QWidget):
         header_row.addWidget(header)
         header_row.addStretch()
 
-        # Small real-time background crawler status bar
         self.lbl_crawler_status = QLabel("CRAWLER STATUS: IDLE")
         self.lbl_crawler_status.setStyleSheet("font-family: 'Consolas', monospace; font-size: 8pt; color: #828a9a; border-right: 1px solid #222228; padding-right: 10px;")
         header_row.addWidget(self.lbl_crawler_status)
 
-        # User Input: Enter Artist to Crawl
         self.input_crawl_artist = QLineEdit()
         self.input_crawl_artist.setPlaceholderText("Enter Artist to Crawl (e.g. Nirvana)...")
         self.input_crawl_artist.setFixedWidth(200)
@@ -303,7 +288,6 @@ class DiscoveryWorkspace(QWidget):
         self.btn_crawl_artist.clicked.connect(self._on_crawl_artist_clicked)
         header_row.addWidget(self.btn_crawl_artist)
 
-        # Real-time search/crawl target genre filter input box
         self.input_target_genre = QLineEdit()
         self.input_target_genre.setPlaceholderText("Filter Crawl Genre...")
         self.input_target_genre.setFixedWidth(140)
@@ -316,7 +300,6 @@ class DiscoveryWorkspace(QWidget):
         self.search_input.textChanged.connect(self._apply_text_filter)
         header_row.addWidget(self.search_input)
 
-        # Dynamic genre filter combo box - displays unique genres from the current Active Crate
         self.combo_genre_filter = QComboBox()
         self.combo_genre_filter.setFixedWidth(150)
         self.combo_genre_filter.addItem("[ALL GENRES]")
@@ -356,7 +339,6 @@ class DiscoveryWorkspace(QWidget):
 
         main_layout.addLayout(header_row)
 
-        # Crate Summary Metric Cards Row
         kpi_row = QHBoxLayout()
         self.card_crate_cnt = MetricCard("CRATE CANDIDATES", "--", "Active recommendations")
         self.card_top_score = MetricCard("TOP_CCS_SCORE", "--", "Peak composite index", "#10b981")
@@ -369,7 +351,6 @@ class DiscoveryWorkspace(QWidget):
         kpi_row.addWidget(self.card_snoozed_cnt)
         main_layout.addLayout(kpi_row)
 
-        # Strategy Sliders Rack
         sliders_card = QFrame()
         sliders_card.setObjectName("WorkbenchCardAccent")
         sliders_card.setStyleSheet("QFrame#WorkbenchCardAccent { background-color: #16161a; border: 1px solid #222228; border-left: 3px solid #f59e0b; border-radius: 4px; padding: 8px 12px; }")
@@ -417,7 +398,6 @@ class DiscoveryWorkspace(QWidget):
         sliders_layout.addLayout(sliders_grid)
         main_layout.addWidget(sliders_card)
 
-        # Candidate Cards Scroll Area
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
@@ -432,13 +412,11 @@ class DiscoveryWorkspace(QWidget):
 
         self.pipeline_finished.connect(self._on_pipeline_finished)
 
-        # Connect thread-safe signal to display active crawler status bar
         signals.crawler_telemetry_updated.connect(self._on_crawler_telemetry_updated)
 
         self._sync_sliders_to_preset("Balanced Curator")
         self.reload_crate()
 
-        # Load any existing dynamic search crawl genre text from cache into the filter line edit on init
         self._load_cached_target_genre_filter()
 
     def _sync_sliders_to_preset(self, preset_name: str) -> None:
@@ -589,7 +567,6 @@ class DiscoveryWorkspace(QWidget):
         for g in unique_genres:
             self.combo_genre_filter.addItem(g)
             
-        # Restore selection state across reloads if still present
         idx = self.combo_genre_filter.findText(current_selection)
         if idx >= 0:
             self.combo_genre_filter.setCurrentIndex(idx)
