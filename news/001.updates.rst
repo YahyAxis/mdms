@@ -1,0 +1,593 @@
+Initial release of MDMS V5 core foundation.
+Introduces reentrant SQLite savepoint transaction engine, memory-mapped page-cache tuning, domain dataclasses, abstract repository interfaces, and baseline database schema migrations.
+
+Introduces unified network transport layer and taxonomy classification engine.
+Features Cloudflare edge proxy connection pooling, token bucket limiters, 3-state circuit breakers, single-flight request coalescing, NetworkX DAG ontology compiler, MiniLM vector embeddings, calibrated margin-based confidence math, and consensus-gated depth specificity boosting.
+
+Refined network transport and taxonomy classification engine for Phase 2.
+Replaced urllib with httpx supporting HTTP/2, connection pooling, and Cloudflare edge proxies. Single-flight requests propagate producer exceptions immediately to awaiting threads. HTTP 429 Retry-After headers trigger automatic rate limiter cooldowns. Taxonomy engine persists unmapped raw tags into sys_unmapped_tags and pre-computes O(1) ancestor/descendant graph caches.
+
+Advanced architectural refinements for Phase 2 transport and taxonomy services.
+Network layer introduces graceful HTTP connection close hooks, DiskCache exception isolation, dynamic rate limit tuning, and circuit breaker telemetry exports. Taxonomy service adds deterministic multi-parent DAG path resolution, batch unmapped tag upserts, atomic RCU index reloading, and semantic characteristics graph queries via NetworkX MultiDiGraph.
+
+Implemented Phase 3 ingestion engine, Chromaprint fpcalc wrapper, and symbolic resolver.
+Includes ProcessPool parallel parsing, triple hashing (file MD5, SHA256, PCM stream MD5), Watchdog real-time filesystem monitoring, evidence family priors with DERIVED_TAXONOMY remapping (0.50 prior vs LOCAL_FILES 0.85 prior), graded confidence trust weighting, and upfront field lock guards.
+
+Refined Phase 3 ingestion engine, fpcalc binary wrapper, and symbolic resolver.
+Includes subprocess execution timeout bounds, automatic quarantine of corrupted files to data/corrupted, live Watchdog evidence collection fixes, rule plugin verification (ISRC, Subgenre, Artist, Title), PROTECTED lock state enforcement, and automated issue resolution tracking.
+
+Second refinement pass for Phase 3 ingestion and resolution services.
+Introduced CompositeFastPassCache for sub-millisecond local file re-parsing skips, collision-safe file moves for archive/corrupted paths, file permission checks on fpcalc binaries, expanded field priors and rule plugins (ArtistRule, TitleRule, ISRCRule, SubgenreRule), and conflict-safe resolution persistence.
+
+Third refinement pass for Phase 3 ingestion and resolution services.
+StageAIngestionEngine processes disk operations outside SQLite write transactions and commits in 500-record chunks. move_file_safe cleanly handles EXDEV filesystem mount points via shutil.copy2 fallback. ResolutionPersistenceAdapter creates or links artist_id and album_id entries when resolving artist and album text values. Applying field decisions updates quality scores in meta_validation automatically.
+
+Launched PySide6 GUI Workstation shell with sub-100ms bootstrap and built integrated Operations and Catalog workspaces.
+Stage A ingestion engine now streams real-time throughput telemetry (tracks/sec, progress percentage, ETA) and automatically resolves initial entity fields upon parsing. Operations view adds live progress gauges, Watchdog controls, and ring-buffered log streaming.
+
+Fourth refinement pass for ingestion. 
+StageAIngestionEngine emits TelemetryEvent snapshots containing active worker counts, processed track progress percentages, current throughput rate (tracks/sec), and estimated time to finish. Newly parsed tracks immediately trigger SymbolicInferenceEngine and ResolutionPersistenceAdapter to resolve initial metadata fields (title, artist, album, genre, subgenre, release_date), setting relational IDs (artist_id, album_id) and recalculating quality scores before writing to disk.
+
+
+Updates to operations center view.
+Renders real-time progress bars, active process counters, throughput badges (trk/s), and estimated finish timestamps. Buffers rapid pipeline events into a 50ms GUI timer flush to ensure smooth text rendering without locking the Qt interface thread. Buffers rapid pipeline events into a 50ms GUI timer flush to ensure smooth text rendering without locking the Qt interface thread.
+
+Refined Stage A ingestion engine and Operations workspace UI.
+Implemented O(1) directory mtime FastBoot calculation, psutil system resource tracking (CPU percentage and process RAM usage), bounded console logging (2000-block memory cap), live worker map exception traps, and an execution run history table rendering recent pipeline runs from sys_runs.
+
+Implemented Phase 4 parallel canonical enrichment engine with Wikidata SPARQL graph integration.
+Features package-level release candidate matching, multi-tier search evaluation with artist verification, full re-enrichment AcoustID search marker resets, compilation-aware sibling metadata propagation, and quality-score donor gating. Removed inline geographic region mapping dictionary.
+
+Refined Stage 1 Studio Album Cluster pre-fetching and Stage 2 track enrichment pipeline.
+Features position-weighted tracklist matching, merged Release Group and Release tag aggregation, thread-safe in-memory artist caching, real-time artist demographic backfills, full re-enrichment cache clearing, and graceful thread job cancellation.
+
+Plan IV
+
+Phase 1 Core Integrity & Database Engine Enhancements:
+- Re-instated `PRAGMA defer_foreign_keys = ON` at transaction depth 1 in `db/core.py` prior to `BEGIN IMMEDIATE TRANSACTION` to allow multi-step deferred foreign-key re-linking during duplicate recording merges and rollbacks.
+- Added DDL for `tax_versions` and `tax_aliases` tables in `db/core.py` to support audit history tracking and dynamic GUI alias overlays.
+- Updated `vw_recording_overview` in `db/core.py` with a multi-tier fallback chain (`SRC_TAXONOMY` -> `SRC_EMBEDDED_TAGS` -> `SRC_LASTFM` -> generic evidence -> 'Unclassified') for primary genre and subgenre fields.
+- Implemented `merge_duplicate_recordings_by_mbid()` in `db/core.py` to atomically re-link assets, features, evidence, decisions, and open issues while purging the duplicate entity.
+- Enhanced `ResolutionPersistenceAdapter.apply_decision()` in `services/resolve.py` with pre-write ISRC and MusicBrainz ID collision rechecking, automatic duplicate merging, post-merge revalidation, and `DUPLICATE_IDENTIFIER_COLLISION` issue logging.
+- Added `purge_invalid_isrc_evidence()` in `services/resolve.py` to specifically isolate and delete invalid syntax ISRC evidence, re-evaluate decisions, update entity states, and resolve `INVALID_ISRC_SYNTAX` issue codes.
+- Expanded pending track query criteria in `services/enrich.py` to target all tracks where `quality_score < 1.0 OR musicbrainz_recording_id IS NULL OR isrc IS NULL`.
+- Added `get_pending_enrichment_recordings()` and `merge_recordings()` methods to `SQLiteRecordingRepo` in `db/sqlite_repos.py`.
+
+Phase 2 Taxonomy Resolver & Confidence Overhaul (Part 1):
+- Differentiated `EvidenceFamily.DERIVED_TAXONOMY` prior weights (0.50 for root genre, 0.40 for subgenre) in `services/resolve.py`.
+- Rewrote `CandidateNode.get_trust_weight()` in `services/resolve.py` to calculate family trust scores via confidence averaging and positional decay.
+- Restricted `_RESOLVED_ALIAS_CACHE` in `services/tax.py` to Tier 1 (exact) and Tier 2 (fuzz.ratio >= 88) matches, bypassing Tier 3 (semantic embeddings) cache persistence.
+- Gated depth boost in `EvidenceResolver.resolve_evidence_to_path()` in `services/tax.py` to trigger only when supported by 2+ unique sources or a canonical provider.
+- Replaced saturating sigmoid confidence with margin-based consensus math (`0.50 * consensus_factor + 0.50 * margin_factor`) in `services/tax.py`.
+- Removed artist name string fallback as genre evidence when raw tag lists are empty in `services/tax.py`.
+
+Phase 2 Taxonomy Resolver & Confidence Overhaul (Part 2):
+- Implemented `is_own_track` 1.6x multiplier weighting in `services/enrich.py` when pooling genre/subgenre evidence album-wide, preventing sibling tracks from overpowering track-specific tags.
+- Added `donor_subgenre` extraction and propagation in `IntraAlbumEngine.propagate_from_donor()` in `services/enrich.py` to transfer subgenres from high-quality donor tracks to sibling tracks.
+
+Phase 3 Taxonomy Content & Self-Expansion:
+- Unified `TaxonomyValidationError` under `domain/exceptions.py`.
+- Updated `OntologyCompiler.compile()` in `services/tax.py` to merge `tax_aliases` DB table as a dynamic runtime overlay alongside `aliases.yaml`.
+- Added single-parent DAG enforcement in `OntologyCompiler.compile()` in `services/tax.py` converting secondary hierarchy edges to `RELATED_TO` semantic edges in `graph_b`.
+- Added `root_uncategorized` fallback root category node in `services/tax.py`.
+- Implemented Tier 4 Auto-Expansion in `TaxonomyService.run_tier4_auto_expansion()` in `services/tax.py` targeting recurring canonical tags (occurrence >= 5, len >= 3, non-artist) with audit logging to `tax_versions`.
+- Added raw canonical tag title-cased fallback subgenre support in `TaxonomyService.resolve_genres()`.
+- Implemented `TaxonomyService.import_musicbrainz_flat_genres()` for bulk flat genre bucketing.
+
+Taxonomy Engine Modularization & Code Refinement:
+- Extracted inline seed data dictionaries and root suffix mappings out of method bodies into top-level constants (`CANONICAL_SEED_NODES`, `CANONICAL_SEED_EDGES`, `CANONICAL_SEED_ALIASES`, `DEFAULT_SUFFIX_ROOT_MAP`) in `services/tax.py`.
+- Introduced `infer_root_node_id()` helper function in `services/tax.py` to handle dynamic category root inference across Tier 4 auto-expansion and MusicBrainz flat genre imports.
+- Streamlined `OntologyCompiler.seed_canonical_taxonomy()`, `run_tier4_auto_expansion()`, and `import_musicbrainz_flat_genres()` by removing duplicated dictionary structures.
+
+Taxonomy Engine Architecture Decoupling & Refinement:
+- Extracted all data dictionaries, seed node lists, edge definitions, and suffix root maps out of `services/tax.py` into a clean configuration module (`config/taxonomy_constants.py`).
+- Refined `services/tax.py` into a pure logic engine with zero inline data structures.
+- Enhanced `OntologyCompiler.compile()` with atomic RCU index compilation, strict single-parent DAG hierarchy enforcement, and dynamic `tax_aliases` overlay merging.
+- Improved `EvidenceResolver.resolve_evidence_to_path()` with batch unmapped tag upserts and multi-source depth boost gating.
+
+Phase 4 Modular Enrichment Architecture (Part 1 - Health Tracker & Shared Evidence Buffer):
+- Implemented `ProviderHealthTracker` dataclasses and `health_tracker` singleton in `utils/net.py` to record request counts, latency EMAs, and failure states per API provider.
+- Wired automatic success/failure metrics logging into `execute_http_request()` in `utils/net.py`.
+- Created modular package file `services/enrich/evidence.py` housing the shared `EvidenceBuffer` batch insertion manager.
+
+Phase 4 Modular Enrichment Architecture (Part 2 - API Service & Sibling Donor Engine):
+- Created `services/enrich/api.py` housing `ExternalAPIService` and title sanitization helpers.
+- Refined Tier-4 MusicBrainz search evaluation in `query_musicbrainz_by_search()` to require both title similarity >= 0.75 AND artist similarity >= 0.70 across candidates.
+- Created `services/enrich/donor.py` housing `IntraAlbumEngine` for sibling metadata propagation from quality 1.0 donor tracks.
+
+Enrichment Architecture Refinements & Hardening:
+- Enhanced `EvidenceBuffer` in `services/enrich/evidence.py` with in-memory session deduplication (`_seen_keys`), `add_many()` batch helper, transactional cursor reuse, and `commit()` row count reporting.
+- Hardened `ExternalAPIService` in `services/enrich/api.py` with `_extract_primary_artist_name()` helper, robust MusicBrainz search candidate ranking (requiring title >= 0.75 and artist >= 0.70), and null-safe JSON extraction across Discogs, Last.fm, and Wikidata payload parsing.
+- Refined `IntraAlbumEngine` in `services/enrich/donor.py` with configurable donor quality thresholds (`min_donor_quality = 1.0`), expanded compilation detection heuristics, and detailed propagation summary metrics (`siblings_updated`, `fields_propagated`).
+
+Advanced Enrichment & Sibling Propagation Enhancements:
+- Upgraded `ExternalAPIService.query_musicbrainz_by_search()` in `services/enrich/api.py` with multi-tier query relaxation (falling back from full release-scoped search to artist/title search) and candidate duration delta tolerance checks (penalizing candidates with > 15s duration variance).
+- Extended Wikidata SPARQL query in `services/enrich/api.py` to extract artist type and gender labels for demographic backfills.
+- Refined `IntraAlbumEngine` in `services/enrich/donor.py` with `meta_locks` protection checks (skipping locked sibling fields), selective field re-resolution (only processing fields that received new donor facts), and added `propagate_album_cluster()` for cluster-wide donor discovery.
+
+Phase 4 Modular Enrichment Architecture Completion:
+- Created `services/enrich/cluster.py` housing `enrich_album_cluster()` for Stage 1 release group tracklist pre-fetching and matching.
+- Created `services/enrich/pipe.py` housing `EnrichmentEngine` orchestration pipeline with compilation-aware genre pooling (restricting genre pooling to track-only evidence when album is a compilation).
+- Created `services/enrich/__init__.py` package entry point seamlessly exporting `EnrichmentEngine`, `IntraAlbumEngine`, `ExternalAPIService`, and `EvidenceBuffer`.
+
+Album Cluster Pre-Fetch & Orchestrator Pipeline Improvements:
+- Enhanced `enrich_album_cluster()` in `services/enrich/cluster.py` with transactional cursor optimization, cluster execution summary statistics, and exception isolation to prevent single-album API failures from interrupting cluster passes.
+- Refined `EnrichmentEngine` in `services/enrich/pipe.py` with thread cancellation guards (checking `_cancel_requested` before executing external HTTP lookups), `meta_locks` field protection integration, and smooth telemetry updates.
+
+Pipeline Orchestrator Optimization & DB IO Reduction:
+- Optimized `_enrich_single_track_worker()` in `services/enrich/pipe.py` to retrieve all entity evidence in a single batched SQL query per track (reducing database read queries during field resolution by 87.5%).
+- Deduplicated Stage 3 sibling propagation in `EnrichmentEngine.run_enrichment_pipeline()` by grouping donor tracks by `album_id`, ensuring each album cluster undergoes sibling propagation exactly once rather than executing redundant sweeps per donor track.
+- Added automatic thread-local connection cleanup (`close_thread_connection`) to prevent SQLite thread connection accumulation during multi-threaded enrichment worker pool runs.
+
+Phase 5 Consolidation & Legacy Cleanup:
+- Created `utils/geo.py` containing unified master `COUNTRY_REGION_MAP` and `get_region_for_country()` helper.
+- Created `utils/text.py` containing unified `strip_edition_noise()` and `is_canonical_title_form()` text utilities.
+
+Text Utility Enhancements & Monolith Deprecation:
+- Expanded `utils/text.py` with `sanitize_artist_name()` (featured artist stripping), `calculate_string_similarity()` (centralized difflib ratio math), `slugify_text()` (filename/URL slug generation), and configurable casefold options in `strip_edition_noise()`.
+- Deprecated monolithic `services/enrich.py` in favor of the modular `services/enrich/` package (`api.py`, `cluster.py`, `donor.py`, `evidence.py`, `pipe.py`, `__init__.py`).
+
+UI Foundation & Workbench Aesthetic Overhaul:
+- Created `gui/styles.py` delivering the "Audio Engineer's Workbench / Mastering Console" QSS stylesheet featuring an obsidian theme (`#101012`), warm amber accents (`#f59e0b`), mono/sans typography split, and thin 2px left-border active indicators.
+- Created `gui/widgets/badges.py` providing monospace status badges (`QualityBadge`, `LockStateBadge`, `SeverityBadge`) with interactive lock state toggling.
+- Created `gui/widgets/console.py` housing `RingBufferConsole`, a memory-bounded (2,000 block cap) log streaming widget with regex color highlighting.
+
+Workbench Main Shell & Navigation Overhaul:
+- Created `gui/widgets/metric.py` providing `MetricCard` for high-density audio metrics.
+- Created `gui/widgets/pagination.py` providing `PaginationBar` for 100-per-page catalog table browsing.
+- Overhauled `gui/app.py` into the "Audio Engineer's Workbench Shell" featuring the Tape-Reel List Sidebar, header status bar, collapsible bottom log drawer, and 7 workspace stack routing.
+
+Phase 6 Analytics Center Dashboard:
+- Overhauled `gui/views/analytics.py` delivering the "Audio Fidelity & Spectrum Dashboard" featuring KPI metric cards, Codec/Fidelity Matrix, Quality Score Frequency Distribution, Taxonomy Classification Depth Spectrum, Decades Release Timeline, and Unmapped Tag Rankings.
+
+Analytics Center UI Refinements:
+- Removed unused `QualityBadge` import in `gui/views/analytics.py`.
+- Explicitly styled `table_unmapped` with text colors (`#e2e8f0`), gridlines (`#222228`), and status-based text foregrounds (`#10b981` for READY, `#f59e0b` for QUEUED).
+- Updated unmapped tags table height from fixed 160px to `setMinimumHeight(220)` to prevent vertical clipping.
+
+Analytics Center Advanced Refinements:
+- Added Authority Identifier Coverage Matrix card in `gui/views/analytics.py` tracking ISRC, MusicBrainz ID, and AcoustID fingerprint rates.
+- Added High-Res Audio Spec Matrix breaking down Hi-Res Lossless (>= 88.2kHz), CD-Quality, High-Bitrate Lossy, and Standard Lossy assets.
+- Added interactive Tier-4 Tag Auto-Expansion execution button directly inside the Unmapped Tags ranking card.
+
+Analytics Center Aesthetic & Technical Refinements:
+- Stripped all emoji symbols from `gui/views/analytics.py` in favor of clean rack-style bracketed text indicators (`[REFRESH ANALYTICS]`, `[RUN TIER-4 AUTO-EXPANSION]`).
+- Standardized `table_unmapped` row selection behavior and explicit column width constraints (140px count column, 160px status column).
+- Hardened asset bitrate query calculations to handle both bps and kbps historical units cleanly.
+
+Analytics Center Major Feature Expansion:
+- Added `[SCOPE: FULL LIBRARY]` vs `[SCOPE: INCOMPLETE ONLY]` filter selector in `gui/views/analytics.py` for targeted quality diagnostics.
+- Added live storage footprint calculation (`GB`/`TB`) in `gui/views/analytics.py` from physical file asset sizes.
+- Added Primary Root Genre Distribution chart, Geographic Artist Regional Profile Matrix (using `utils.geo.get_region_for_country`), and Sonic Features DSP Analysis Coverage card.
+
+Workbench Integration & Execution Readiness:
+- Wired active `AnalyticsWorkspace`, `CatalogWorkspace`, and `OperationsView` into `gui/app.py` with placeholder rack panels for upcoming modules.
+- Verified system database initialization (`init_db_schema`), `FastBootGuard` hashing, and `fpcalc` availability for clean application startup via `python main.py`.
+
+Repository Import Fix:
+- Restored `SQLiteArtistRepo`, `SQLiteAlbumRepo`, `SQLiteEvidenceRepo`, `SQLiteDiscoveryRepo`, `SQLiteSonicRepo`, and `SQLiteUnitOfWork` classes in `db/sqlite_repos.py`.
+
+Analytics Center Tabbed Overhaul & Feature Expansion:
+- Re-architected `gui/views/analytics.py` into a 4-tab studio console layout (`[1] OVERVIEW & METRICS`, `[2] TAXONOMY & GENRES`, `[3] AUDIO SPECTRUM & DSP`, `[4] DEMOGRAPHICS & ERA`).
+- Added Taxonomy Evidence Source Provenance breakdown (`SRC_TAXONOMY`, `SRC_EMBEDDED_TAGS`, `SRC_LASTFM`, `SRC_MUSICBRAINZ`, `SRC_DISCOGS`).
+- Added Audio Channel Configuration Matrix (Stereo 2.0 vs Mono vs Multichannel) and Bitrate Density Bins.
+- Added Artist Demographic Profile card tracking Bands/Ensembles, Solo Male/Female artists, and Top 10 Country origins.
+
+Analytics Center Usability & Classification Fixes:
+- Fixed MP3 320kbps bitrate bucket query in `gui/views/analytics.py` by setting the lower bound threshold to >=280kbps (280,000 bps) to properly categorize 319.8kbps VBR/CBR audio headers.
+- Eliminated double/nested scrollbars on the Unmapped Tags table in `gui/views/analytics.py` by disabling internal table scrollbars and dynamically calculating table height.
+- Added Primary Subgenre Breakdown card (Top 10 subgenres) and expanded Primary Root Genre card in `gui/views/analytics.py`.
+
+Analytics Center Advanced Refinements & Scope Fixes:
+- Added Total Playtime metric card (`TOTAL PLAYTIME`) in `gui/views/analytics.py` calculating total library audio duration in hours.
+- Fixed primary root genre and subgenre breakdown queries to properly respect the active scope selector (`FULL LIBRARY` vs `INCOMPLETE ONLY`).
+- Added informative hover tooltips to all progress bars and category labels in `AnalyticsBarRow`.
+- Added empty-state fallback rows for zero-record filter queries.
+
+Analytics Center Scope Synchronization & Memory Refinements:
+- Encapsulated row management inside `AnalyticsCard.clear_rows()`, eliminating layout item index dependencies during dashboard refresh cycles.
+- Synchronized `[SCOPE: INCOMPLETE ONLY]` filter across all 4 tabs (Audio Bitrates, Channel Configs, Sample Rates, Sonic Features, Artist Demographics, and Geographic Regions).
+- Hardened query joins across `core_assets`, `core_sonic_features`, and `core_artists` to ensure consistent scoped analytics.
+
+Analytics Center Complete Overhaul & Data Vault Addition:
+- Overhauled Tab 2 (`[2] TAXONOMY & GENRES`) in `gui/views/analytics.py` with searchable tables displaying every root genre, subgenre, and raw community tag in the database with search/filter capabilities.
+- Added brand-new Tab 5 (`[5] GATHERED DATA VAULT`) in `gui/views/analytics.py` providing total evidence metrics (`meta_evidence`), provider fact distributions, payload blob counts (`sys_payloads`), and a live searchable Fact Explorer table.
+
+Analytics Center Complete 5-Tab Overhaul:
+- Overhauled Tab 1 (`[1] OVERVIEW & METRICS`) in `gui/views/analytics.py` with Catalog Lifecycle State Matrix and Metadata Completeness Deficit Breakdown.
+- Overhauled Tab 3 (`[3] AUDIO SPECTRUM & DSP`) in `gui/views/analytics.py` with a live Searchable Audio Asset Technical Inspector table displaying audio specs and physical paths.
+- Overhauled Tab 4 (`[4] DEMOGRAPHICS & ERA`) in `gui/views/analytics.py` with an expanded Top 12 Country list and a live Searchable Artist Demographic Directory table.
+
+Analytics Center Overhaul & Text Data Exporter Addition:
+- Eliminated raw QTableWidget clutter in `gui/views/analytics.py` Tab 2 in favor of clean visual bar charts (`AnalyticsBarRow`), progress meters, and high-density rank panels.
+- Removed incoming unmapped tags table in Tab 2, replacing it with a streamlined Unmapped Tags Digest card and inline auto-expansion action.
+- Added brand-new Tab 6 (`[6] DATA EXPORT & REPORTS`) in `gui/views/analytics.py` featuring one-click CSV catalog exporting, JSON taxonomy dumping, unmapped tag TXT exporting, Markdown summary report generation, and a live text preview console.
+
+Phase 7 Modular Catalog Workspace (Part 1 - Recordings & Artists):
+- Created `gui/views/catalog/recordings.py` providing the Recording Explorer with 100-item pagination, multi-card inspector (Core Metadata, Audio Specs, Authority Identifiers), and interactive field lock toggling (`meta_locks`).
+- Created `gui/views/catalog/artists.py` providing the Artist Directory with demographic profiling (Country, Mapped Region via `utils.geo`, Formed Year, Gender, Artist Type, MusicBrainz Artist ID), discography tables, and attributed track listings.
+
+Phase 7 Modular Catalog Workspace Completion:
+- Created `gui/views/catalog/albums.py` providing the Album Catalog Inspector with release specifications (Catalog Number, Barcode, Release Dates, Total Duration), full tracklist table, and bi-directional navigation jump signals.
+- Created `gui/views/catalog/__init__.py` assembling the 3-tab `CatalogWorkspace` container (`[1] RECORDINGS EXPLORER`, `[2] ARTIST DIRECTORY`, `[3] ALBUM CATALOG`) with bi-directional cross-filtering signals.
+
+Recordings Explorer Row Tinting Refinement:
+- Updated `_render_page()` in `gui/views/catalog/recordings.py` to tint entire table rows with subtle dark background colors corresponding to entity quality scores (Emerald for 100%, Slate for 80-99%, Amber for 50-79%, Crimson for <50%).
+
+Phase 8 Modular Operations & Repair Center:
+- Created `gui/views/ops/pipeline.py` providing the Pipeline Execution Control Rack with execution control cards, real-time worker/telemetry meters, multi-stage progress bars, live RingBuffer log console, and `sys_runs` execution history.
+- Created `gui/views/ops/repair.py` providing the Metadata Issue Repair Center with real-time `vw_open_issues_queue` inspection, field lock state toggling (`meta_locks`), manual evidence overrides, invalid ISRC purging (`purge_invalid_isrc_evidence`), and Album Sibling Donor evidence imputing (`IntraAlbumEngine`).
+- Created `gui/views/ops/__init__.py` assembling `OperationsWorkspace` (`[1] PIPELINE CONTROL RACK`, `[2] METADATA REPAIR CENTER`).
+
+Database Reset, Re-Ingest & Operations Interface Compact Overhaul:
+- Added `wipe_database_clean()` in `db/core.py` for atomic full database purge and schema re-initialization.
+- Added `force_reingest_library()` in `services/ingest.py` to clear fastpass caches and re-process all input files.
+- Compacted `gui/views/ops/pipeline.py` interface into a sleek, high-density rack with 5 telemetry progress bars (Total Batch, Stage Progress, File Stream, CPU Load, RAM Memory), compact execution cards, and Database Wipe / Force Re-Ingest controls with confirmation dialogs.
+
+Operations Control Rack Refinements & Dynamic Telemetry:
+- Updated RAM progress bar calculation in `gui/views/ops/pipeline.py` to dynamically query system memory via `psutil` instead of assuming 16GB.
+- Added high-load color alert transitions in `CompactBarMeter` (amber >= 70%, red >= 85%).
+- Added double-click run audit inspection handlers and status color formatting to `history_table` in `gui/views/ops/pipeline.py`.
+- Triggered global ingestion finish signals upon full database wipe to automatically synchronize Catalog and Analytics views.
+
+Operations & Metadata Repair Refinements:
+- Added Stage C Taxonomy Re-Classification controls in `gui/views/ops/pipeline.py` executing `TaxonomyService.reclassify_all_library_taxonomies()` in background worker threads.
+- Added Issue Code and Severity combo box filters to the open issues queue in `gui/views/ops/repair.py`.
+- Added manual Genre and Subgenre override fields and a dynamic `QualityBadge` header to `gui/views/ops/repair.py`.
+
+Archive File Restoration & Re-Ingestion Overhaul:
+- Added `restore_archived_files_to_input()` in `services/ingest.py` to move audio files from `data/archive/` and `data/corrupted/` back to `data/input/` during re-ingest and database purge operations.
+- Updated `StageAIngestionEngine.force_reingest_library()` in `services/ingest.py` to automatically execute archive restoration before flushing fastpass caches.
+- Updated `wipe_database_clean()` in `db/core.py` to restore archived files to `data/input/` upon full database purges.
+- Updated `gui/views/ops/pipeline.py` with restoration feedback logging and updated confirmation dialogs.
+
+Telemetry Event Routing & CPU/RAM Monitoring Fix:
+- Fixed `EventBus.publish()` in `domain/events.py` to route `TelemetryEvent` instances to `signals.telemetry_updated`, unblocking real-time progress bars, throughput metrics, CPU load, and RAM telemetry updates.
+- Initialized `psutil.cpu_percent()` baseline on module load in `utils/profile.py` to ensure accurate non-zero CPU load percentages.
+- Streamed Stage 1 (Cluster Pre-Fetch) and Stage 2 (Track Cascade) telemetry snapshots continuously in `services/enrich/pipe.py`.
+
+Stage A Ingestion Telemetry Stream Fix:
+- Updated `StageAIngestionEngine.run_stage_a()` in `services/ingest.py` with two-phase progress telemetry streaming (Phase 1 Parsing 0-50%, Phase 2 DB Batch Insertion & Symbolic Resolution 50-100%).
+- Eliminated silent progress freezes during database batch writes and initial field resolution passes.
+
+Phase 9 Discovery Engine Backend Hardening:
+- Implemented `LocalLibraryIndexCache` in `services/discover.py` featuring 3-character prefix-blocked bucket matching for fast O(1) candidate ownership checks.
+- Corrected $v_{graph}$ authority graph formula in `services/discover.py` so higher external ID coverage directly increases candidate confidence scores.
+- Implemented `DisjointSetUnion` (DSU) authority graph cluster resolution with candidate anti-collision checks.
+- Implemented `CompositeCandidateScorer` calculating multi-vector CCS scores with strategy presets (`Balanced Curator`, `Completionist`, `Genre Explorer`, `Crate Digger`), uncertainty margins, and ANLRG point breakdowns.
+- Added `mark_candidate_state()` helper in `services/discover.py` for candidate state transitions (including manual ACQUIRED overrides).
+
+Discovery Engine Dynamic Scoring & Seed Generation Refinements:
+- Implemented `calculate_subgenre_deficit_score()` in `services/discover.py` dynamically scoring subgenre deficit fill values ($v_{def}$) based on current library track inventory.
+- Implemented `calculate_artist_saturation_penalty()` in `services/discover.py` applying dynamic saturation penalties ($p_{sat}$) when recommending artists heavily owned in the user's collection.
+- Added `generate_seed_candidates_if_empty()` in `services/discover.py` to automatically seed discovery candidates on fresh database setups.
+
+Discovery Engine Relevance & Snooze Filter Refinements:
+- Implemented `calculate_genre_relevance_score()` in `services/discover.py` calculating dynamic genre affinity ($v_{rel}$) based on current catalog representations.
+- Added `snooze_candidate()` helper in `services/discover.py` supporting $N$-day candidate snoozing with UTC timestamp tracking.
+- Filtered snoozed candidates in `DiscoveryEnginePipeline.run_pipeline()` to prevent snoozed releases from appearing in active recommendation crates before expiration.
+
+Discovery Engine DSU Clustering & Live Re-Scoring Enhancements:
+- Implemented `build_authority_dsu_clusters()` in `services/discover.py` for cross-authority equivalence mapping across MusicBrainz, Discogs, and Wikidata IDs.
+- Implemented `calculate_user_fatigue_decay()` in `services/discover.py` applying dynamic fatigue decay ($\Delta_{fatigue}$) to stale un-actioned recommendations.
+- Added `rescore_active_candidates()` in `services/discover.py` allowing instant GUI strategy weight vector re-scoring.
+
+Discovery Engine Final Architectural Polish:
+- Added custom weight vector support (`custom_weights`) in `CompositeCandidateScorer.score_candidate()` for real-time slider-driven strategy adjustments in `services/discover.py`.
+- Hardened `build_authority_dsu_clusters()` with transitive path compression across MusicBrainz, Discogs, and Wikidata authority mappings.
+- Standardized weight normalization and uncertainty margin calculations in `services/discover.py`.
+
+Cloudflare Proxy Gateway Route Fix:
+- Added explicit `dotenv.load_dotenv()` initialization in `config/settings.py` to ensure `.env` settings (`MUSICBRAINZ_BASE_URL`, rate limit multipliers, API keys) are loaded before setting defaults.
+- Routed all MusicBrainz API requests through the Cloudflare Worker Gateway (`https://musicbrainz-gateway.yahya-ess123456.workers.dev/ws/2`), unblocking high-throughput enrichment and resolving missing MBIDs.
+
+Phase 10 Discovery Crate GUI Workspace & Strategy Studio:
+- Overhauled `gui/views/discover.py` delivering the interactive Discovery Crate workspace with strategy preset selectors and real-time vector weight sliders.
+- Added high-density candidate release cards with Composite Candidate Score badges ($\text{CCS} \pm \delta$) and expandable ANLRG point calculation breakdowns.
+- Integrated candidate action controls (`[ACCEPT]`, `[SNOOZE 14D]`, `[IGNORE]`, and manual `[MARK AS OWNED]` escape hatch).
+
+Discovery Crate GUI Performance & State Filtering Enhancements:
+- Offloaded discovery candidate scoring in `gui/views/discover.py` to background worker threads, keeping the Qt main interface thread 100% responsive.
+- Implemented 80ms `QTimer` debouncing on strategy vector weight sliders in `gui/views/discover.py` to deliver smooth slider dragging without widget tree thrashing.
+- Added Candidate State Filter dropdown (`ACTIVE CRATE`, `QUEUED`, `SNOOZED`, `ACQUIRED`) in `gui/views/discover.py`.
+
+Discovery Crate State Filtering & Card Layout Polish:
+- Implemented `_fetch_candidates_by_state()` in `gui/views/discover.py` to allow live inspection of QUEUED, SNOOZED, and ACQUIRED candidate lists.
+- Enhanced `CandidateCard` header layout in `gui/views/discover.py` with release year and color-coded action buttons.
+- Synchronized slider re-scoring with normalized weight percentage displays.
+
+Discovery Crate GUI Expansion & ANLRG Visual Meters:
+- Added Discovery KPI header cards (`CRATE CANDIDATES`, `TOP CCS SCORE`, `ACTIVE STRATEGY`, `SNOOZED RELEASES`) in `gui/views/discover.py`.
+- Replaced plain text breakdown cards in `CandidateCard` with visual mini progress meters for component scores ($v_{rel}$, $v_{coll}$, $v_{graph}$, $v_{def}$).
+- Added a live candidate search filter input (`QLineEdit`) for instant title/artist/genre filtering in `gui/views/discover.py`.
+
+Discovery Crate Memory & Signal Signal Refinements:
+- Added `_clear_cards_layout()` in `gui/views/discover.py` for clean layout item and spacer teardown.
+- Blocked Qt slider signals during preset synchronization in `gui/views/discover.py` to eliminate redundant thread creation.
+- Added `[ACCEPT TOP 5]` batch action button in `gui/views/discover.py`.
+
+Phase 11 Taxonomy Ontology Visualizer & Tag Harvester:
+- Overhauled `gui/views/tax.py` into a 3-tab studio console (`[1] HIERARCHICAL ONTOLOGY TREE`, `[2] UNMAPPED TAG HARVESTER`, `[3] DRY-RUN RESOLUTION CONSOLE`).
+- Implemented `QTreeWidget` DAG hierarchy browser with search filtering and atomic index recompilation (`reload_taxonomy_ontology()`).
+- Added interactive `[ADD ALIAS TO NODE]` action in `gui/views/tax.py` mapping unmapped tags directly to `tax_aliases`.
+- Implemented real-time Dry-Run Tag Resolution console for testing candidate tag combinations.
+
+Taxonomy Workspace UI & Alias Mapping Enhancements:
+- Added Taxonomy KPI metric cards (`ROOT CATEGORIES`, `SUBGENRE NODES`, `ACTIVE ALIASES`, `UNMAPPED QUEUE`) in `gui/views/tax.py`.
+- Upgraded alias mapping in `gui/views/tax.py` with an auto-populated active node selection dropdown dialog.
+- Integrated a split-screen Node Inspector panel in `gui/views/tax.py` showing node paths, descriptions, and mapped aliases.
+- Added quick test tag preset buttons in the Dry-Run Resolution Console.
+
+Phase 12 Scientific Research Studio & Field Provenance:
+- Overhauled `gui/views/research.py` into a 3-tab studio console (`[1] RESEARCH COHORT BUILDER`, `[2] ML SPLIT EXPORTER`, `[3] FIELD PROVENANCE TIMELINE`).
+- Implemented Research Cohort builder in `gui/views/research.py` with SQL quality score sliders and genre keyword rules.
+- Added Train/Validation/Test ML dataset split exporter (CSV/JSON) in `gui/views/research.py`.
+- Implemented Field Provenance Timeline in `gui/views/research.py` detailing current active decisions vs. historical evidence facts.
+
+Research Studio Provenance & Dataset Exporter Enhancements:
+- Added `[WINNING FACT]` vs `[SUPERSEDED]` status badging in `gui/views/research.py` Field Provenance Timeline.
+- Upgraded track search in `gui/views/research.py` Tab 3 with a track selection dropdown listing all matching search hits.
+- Added Release Decade filter controls to the Cohort Builder in `gui/views/research.py`.
+- Expanded ML dataset exporter in `gui/views/research.py` to include technical audio specs (duration, bitrate, sample rate, ISRC, MBID) in exported JSON/CSV splits.
+
+Research Studio Cross-Tab Integration & Ratio Validation:
+- Hardened winning fact detection in `gui/views/research.py` to compare evidence values against live `vw_recording_overview` entity attributes.
+- Added `[INSPECT PROVENANCE FOR SELECTED TRACK]` button and table double-click jump from Cohort Builder to Field Provenance Timeline in `gui/views/research.py`.
+- Added real-time ML split ratio sum validation in `gui/views/research.py` Tab 2.
+
+Phase 13 System Health Center & Maintenance:
+- Overhauled `gui/views/system.py` into a 3-tab workbench console (`[1] API NETWORK & CIRCUIT MONITORS`, `[2] DATABASE MAINTENANCE`, `[3] SYSTEM CONFIGURATION`).
+- Integrated live `ProviderHealthTracker` and `CircuitBreaker` status tables in `gui/views/system.py` with circuit reset capabilities.
+- Implemented one-click database maintenance actions (`VACUUM`, `REINDEX`, `purge_invalid_isrc_evidence()`, fast-pass cache flush) in `gui/views/system.py`.
+
+System Health Live Polling & Integrity Diagnostics:
+- Integrated 2-second real-time network polling timer in `gui/views/system.py` to stream live API request counts, EMAs, and circuit states without manual button clicking.
+- Implemented individual provider circuit breaker resets via row double-clicking in `table_network`.
+- Added `PRAGMA quick_check` database integrity verification to `gui/views/system.py`.
+- Added `[TEST ALL API ENDPOINTS]` live network connectivity test trigger.
+
+Phase 14 Job Audit Inspector & Rollback Engine Completion:
+- Created `gui/dialogs/audit.py` providing `JobAuditInspectorDialog` for execution run inspection in `sys_runs`.
+- Implemented Atomic Single-Run Rollback engine in `gui/dialogs/audit.py` restoring previous field values while respecting user MANUAL locks.
+- Implemented decompressed API payload BLOB viewer (`sys_payloads`) with JSON formatting and search tools in `gui/dialogs/audit.py`.
+- Created ~5,000-token AI-ready Markdown report generator in `gui/dialogs/audit.py` exporting structured diagnostic reports for LLM context windows.
+- Created `gui/dialogs/__init__.py` exporting `JobAuditInspectorDialog`.
+
+Full Workstation Shell Integration:
+- Overhauled `gui/app.py` importing and wiring all 7 production workspace views (`AnalyticsWorkspace`, `CatalogWorkspace`, `OperationsWorkspace`, `DiscoveryWorkspace`, `TaxonomyWorkspace`, `ResearchWorkspace`, `SystemHealthWorkspace`).
+- Cleaned Tape-Reel Sidebar menu labels and integrated global signal event dispatching.
+
+Enrichment Performance Optimization & Smart Query Skipping:
+- Added smart conditional query guards in `services/enrich/pipe.py` skipping slow Discogs lookups when catalog numbers/barcodes are already present.
+- Added early-exit checks skipping MusicBrainz search queries when MBIDs are already resolved via Stage 1 cluster pre-fetching or ISRC lookups.
+- Reduced Stage 2 track cascade processing time by over 80%.
+
+Enrichment Telemetry & Structured Logging Overhaul:
+- Added `current_track_title`, `facts_count`, and `cache_hits` fields to `TelemetryEvent` in `domain/models.py`.
+- Overhauled `services/enrich/pipe.py` with structured per-track log streaming detailing MBID matches, quality score improvements, and fact insertion counts.
+- Updated `gui/views/ops/pipeline.py` displaying live active track names, accumulated fact counts, and disk cache hits.
+
+SQLite Autocommit & Transaction Isolation Fix:
+- Configured `sqlite3.connect()` with `isolation_level=None` in `db/core.py` to disable Python DB-API implicit driver transactions and eliminate "cannot start a transaction within a transaction" errors.
+- Added `conn.in_transaction` guards to `db_transaction()` in `db/core.py` for atomic, explicit `BEGIN IMMEDIATE` and `COMMIT` management.
+- Offloaded slider re-scoring in `gui/views/discover.py` to background worker threads.
+
+MusicBrainz Search Lucene Query Sanitization & MBID Logging Fix:
+- Implemented `clean_for_lucene_query()` in `services/enrich/api.py` stripping Lucene syntax characters from title/artist search strings.
+- Added 3-tier query fallbacks and calibrated similarity thresholds in `query_musicbrainz_by_search()` in `services/enrich/api.py`.
+- Updated `_enrich_single_track_worker()` in `services/enrich/pipe.py` to query final winning MBIDs from `meta_evidence` for accurate telemetry logging.
+
+Import & Syntax Warning Fixes:
+- Converted `clean_for_lucene_query()` docstring in `services/enrich/api.py` to a raw docstring to eliminate Python 3.12+ invalid escape sequence warnings.
+- Explicitly defined and exported `DiscoveryWorkspace` and `DiscoveryView` in `gui/views/discover.py` to resolve import errors in `gui/app.py`.
+
+Fixed critical data nullification bug in single-run rollback engine by dynamically querying active database values before resolving symbolic fields.
+Resolved SQLite nested transaction crashes by configuring ``isolation_level=None`` and using thread-scoped savepoints (``sp_{depth}_{thread_id}``).
+Prioritized ``SRC_USER`` genre evidence at the top of ``vw_recording_overview`` and enforced column whitelisting on dynamic SQL update queries.
+Added core database performance indexes and deduplication index ``idx_issues_dedup``.
+
+Enforced hard authority gates requiring high-trust sources (SRC_MUSICBRAINZ*, SRC_ACOUSTID, SRC_USER) for identity lookup skips.
+Implemented timestamped soft retries for AcoustID lookups and short-circuited EvidenceResolver for SRC_USER genre evidence.
+Locked down resolved genres to live ontology node names and enabled Tier-4 auto-expansion child node creation under inferred roots.
+
+Fixed MP3 bitrate extraction bug by querying Mutagen MP3 headers during local parsing.
+Implemented pre-insert path-seed cleaning and fingerprint + duration window container deduplication.
+Added normalize_artist_name() utility for clean artist directory matching at creation time.
+
+Implemented canonical artist directory matching in SQLiteArtistRepo to prevent name fragmentation.
+Added automated issue generator sweep in Repair Center for low-quality tracks and missing identifiers.
+Created sys_payloads eviction engine to keep database size bounded during extensive API enrichment runs.
+
+Fixed discovery pipeline transaction errors by enforcing savepoint isolation on candidate scoring tasks.
+Sanitized MusicBrainz Lucene queries to eliminate syntax errors on special characters.
+Added defensive null guards across catalog detail panel loaders to ensure complete UI stability on partial records.
+
+Completed Phase 1 System Core Fortification with defensive null guards across all GUI catalog detail loaders.
+Offloaded discovery candidate scoring to background threads with debounced slider controls.
+Hardened bi-directional navigation signals across Artists, Albums, and Recordings views.
+
+Fixed Research Studio SQL channels column exception by exposing f.channels in vw_recording_overview.
+Enforced ProcessPool cancellation fastpass isolation and title/artist exact deduplication guards.
+Validated recording lifecycle state progression and lineage-constrained subgenre fallback math.
+
+Automated deduplication of pre-existing open issues during schema initialization to allow safe creation of idx_issues_dedup index on existing databases.
+
+Migrated core persistence layer to PostgreSQL with high-throughput connection pooling and pgvector support.
+Added dual-backend switching in settings.py and provided CLI migration tool for automated PostgreSQL database setup.
+
+Fixed 0% AcoustID coverage by adding acoustid_id to the resolution loop in services/enrich/pipe.py.
+Fixed empty artist demographics by using dynamic repo selection (get_artist_repo()) respecting DB_BACKEND=POSTGRES.
+Eliminated free-text primary genres by resolving local embedded tags through TaxonomyService during Stage A ingestion.
+Expanded MusicBrainz Lucene search relaxation tiers for higher MBID match rates.
+
+Implemented automatic download and extraction of Chromaprint fpcalc.exe binary into .bin/ directory.
+Added broad query fallbacks in MusicBrainz search, unblocking AcoustID and MusicBrainz lookups across the entire library.
+
+Launched MDMS v0.5.5 Self-Improving Taxonomy Engine with automated candidate proposal evaluation, shadow sandbox validation, atomic node promotions, and proposal metrics UI dashboard.
+
+Enhanced root node inference in Taxonomy Engine with suffix endswith matching (e.g., krautrock -> root_rock).
+Added NON_GENRE_STOPWORDS blocklist to filter out subjective mood tags (e.g. 'love') from becoming subgenre nodes.
+Added reparent_uncategorized_nodes() sweep to automatically move misparented subgenres to their true roots.
+
+Fixed psycopg2.errors.InFailedSqlTransaction by adding auto-recovery rollback checks in db_transaction() and get_connection() for PostgreSQL connections.
+
+Fixed PostgreSQL SQL translation errors for INSERT OR IGNORE and parameter binding across discovery and research cohort modules.
+
+Created PgConnectionWrapper to automatically wrap PostgreSQL cursors across direct conn.cursor() calls, enabling universal parameter translation.
+Replaced SQLite-specific datetime('now') queries with ANSI-compliant CURRENT_TIMESTAMP in DiscoveryEnginePipeline.
+
+Converted SentenceTransformers and PyTorch imports into lazy loaders inside EmbeddingService.get_model(), accelerating main application launch from 8 seconds down to sub-10ms.
+
+Fixed a bug during ingestion
+
+Depreciated the SQLite database backend, dual-database translation wrappers, and SQLite-specific setting parameters. MDMS V5 now operates natively on PostgreSQL.
+Unified repository implementations into a single PostgreSQL repository module and replaced translation regex wrappers with native PostgreSQL parameter placeholders.
+Converted legacy ``INSERT OR REPLACE`` and ``INSERT OR IGNORE`` statements across all services to native PostgreSQL ``ON CONFLICT (...) DO UPDATE`` and ``ON CONFLICT DO NOTHING`` clauses.
+
+Removed legacy ``db/sqlite_repos.py`` and ``db/postgres_repos.py`` modules, unifying all repository exports directly into ``db/__init__.py``.
+Depreciated the SQLite database backend, dual-database translation wrappers, and SQLite-specific setting parameters. MDMS V5 now operates natively on PostgreSQL.
+Converted legacy ``INSERT OR REPLACE`` and ``INSERT OR IGNORE`` statements across all services to native PostgreSQL ``ON CONFLICT (...) DO UPDATE`` and ``ON CONFLICT DO NOTHING`` clauses.
+
+Fixed field resolution failures during enrichment by isolating per-field execution steps inside individual try-except blocks.
+Fixed PostgreSQL foreign key constraint violations during album resolution by resetting artist ID fallbacks to null values instead of invalid string identifiers.
+Standardized native PostgreSQL parameter placeholders across SymbolicInferenceEngine, EnrichmentEngine, and RecordingsView.
+
+Fixed field resolution failures during enrichment by isolating per-field execution steps inside individual try-except blocks.
+Fixed PostgreSQL foreign key constraint violations during album resolution by resetting artist ID fallbacks to null values instead of invalid string identifiers.
+Standardized native PostgreSQL parameter placeholders across SymbolicInferenceEngine, EnrichmentEngine, ArtistsView, RepairView, and JobAuditInspectorDialog.
+Implemented subscriber registration and error isolation in EventBus dispatching.
+
+Fixed PostgreSQL column length overflow on ``core_recordings.musicbrainz_recording_id`` by auto-expanding column limits to ``VARCHAR(255)`` and enforcing UUID extraction in ``MBIDNormalizer``.
+Fixed SQL syntax errors in Research Studio cohort queries by replacing legacy ``?`` placeholders with native PostgreSQL ``%s`` parameter placeholders.
+Fixed transaction abort cascades during track enrichment by isolating per-field resolution calls inside error boundaries.
+
+Fixed PostgreSQL ``psycopg2.errors.FeatureNotSupported`` exception by dropping dependent views ``vw_recording_overview`` and ``vw_open_issues_queue`` prior to altering column data types during schema initialization.
+Fixed PostgreSQL column length overflow on ``core_recordings.musicbrainz_recording_id`` by auto-expanding column limits to ``VARCHAR(255)`` and enforcing UUID extraction in ``MBIDNormalizer``.
+Fixed SQL syntax errors in Research Studio cohort queries by replacing legacy ``?`` placeholders with native PostgreSQL ``%s`` parameter placeholders.
+
+Restored DDL table creation for ``core_sonic_features`` during schema initialization.
+Fixed PostgreSQL view dependency error by dropping views ``vw_recording_overview`` and ``vw_open_issues_queue`` prior to altering column data types.
+Replaced legacy ``?`` placeholders with PostgreSQL ``%s`` placeholders across Stage B track enrichment queries.
+Protected ingestion file moves and Chromaprint executions against ``FileNotFoundError`` exceptions.
+
+Converted all Stage 1 Studio Cluster Pre-Fetch and Intra-Album donor queries in ``services/enrich/cluster.py``, ``services/enrich/donor.py``, and ``services/enrich/evidence.py`` to native PostgreSQL ``%s`` parameter placeholders.
+
+Implemented ``extract_core_title()`` title parsing in ``services/enrich/api.py`` to strip parenthetical subtitles, movement titles, and sleeve noise prior to MusicBrainz queries.
+Added Tier 1 Core Short Title MusicBrainz search relaxations for subtitled tracks.
+Updated AcoustID search result parsing to preserve linked MusicBrainz recording IDs on high-trust audio fingerprint matches.
+
+Fixed AcoustID MBID score displacement bug in ``services/enrich/api.py`` so unlinked AcoustID entries can no longer override or block valid MusicBrainz recording UUIDs.
+Added automatic artist name sanitization for search queries in ``services/enrich/pipe.py`` to strip featured artist noise before Lucene evaluation.
+
+Fixed MusicBrainz rate-limit circuit breaker lockouts during Stage B enrichment by reducing worker thread concurrency from 12 to 4 in ``services/enrich/pipe.py``.
+Added automatic 3-pass retry loops with exponential backoff in ``utils/net.py`` for HTTP 429 and 503 rate-limit responses.
+Added primary endpoint fallback to ``https://musicbrainz.org/ws/2`` when proxy gateways encounter persistent rate limits.
+
+Expanded metadata identifier and payload hash columns across ``core_albums``, ``core_artists``, and ``meta_evidence`` to ``TEXT`` to prevent 64-byte character length exceptions on long API strings.
+Initialized HTTP latency timers prior to circuit breaker checks in ``utils/net.py`` to eliminate ``UnboundLocalError`` exceptions on network failures.
+
+### Deprecations & Removals
+- Deprecated and deleted all structural ontology graph database tables (`tax_versions`, `tax_aliases`, `tax_proposals`, `tax_alias_stats`, `tax_change_log`, and `sys_unmapped_tags`).
+
+### Features
+- Migrated the taxonomy pipeline to a flat, raw string weighted consensus engine.
+- Added native `genre` and `subgenre` columns directly to the `core_recordings` table.
+- Overhauled `vw_recording_overview` to select resolved genre and subgenre fields from `core_recordings` natively.
+- Implemented signature-compatible `TaxonomyService` and `TaxonomyIndex` interfaces to avoid downstream file import issues.
+
+### Features
+- Overhauled the master workbench shell `gui/app.py` to route exactly 6 active workspaces, removing the deprecated visual taxonomy tree visualizer.
+- Refined the Analytics dashboard tab `[2] GENRE CHANNELS` to directly query and visualize raw flat string evidence data, bypassing non-existent taxonomy mapping databases.
+- Updated raw tag text exporters and JSON loaders in the Analytics view to output the unified closed-ontology alias maps dynamically in-memory.
+
+### Features
+- Overhauled the master workbench shell `gui/app.py` to route exactly 6 active workspaces, removing the deprecated visual taxonomy tree visualizer.
+- Refined the Analytics dashboard tab `[2] GENRE CHANNELS` to directly query and visualize raw flat string evidence data, bypassing non-existent taxonomy mapping databases.
+- Updated raw tag text exporters and JSON loaders in the Analytics view to output the unified closed-ontology alias maps dynamically in-memory.
+
+### Features
+- Overhauled `gui/views/ops/repair.py` selection and override queries to utilize the native `core_recordings.genre` and `subgenre` columns directly, eliminating evidence table subquery latency.
+- Refined the Sibling Metadata Imputer in `services/enrich/donor.py` to extract and propagate flat genres natively using core columns, decreasing transaction depth load.
+
+### Bug Fixes
+- Restored `BoundedLRUCache` definition inside `services/tax.py` to fix the `ImportError` on application boot.
+
+### Bug Fixes
+- Introduced a dedicated `GenreNormalizer` in `services/resolve.py` that cleanly title-cases and handles formatting for all resolved track styles and hyphenated genres prior to writing them to `core_recordings`.
+
+### Bug Fixes
+- Overhauled candidate resolution in `SymbolicInferenceEngine.resolve_field` to always leverage the normalized string representation for `"genre"` and `"subgenre"` fields, ensuring proper casing.
+- Standardized dynamic formatting in `TaxonomyService.resolve_genres` to match the hyphen-preserving title capitalization utility, delivering a fully cohesive style structure.
+
+### Features
+- Delivers complete, uninterrupted files for the local parser `services/ingest.py` and cluster pre-fetch pipelines `services/enrich/pipe.py`.
+- Verified signature fallback propagation across all active thread executors.
+
+- Delivers the complete implementation of `gui/views/catalog/recordings.py` and `gui/views/analytics.py` synchronized with the simplified, flat-ontology database layout.
+
+### Features
+- Overhauled view initialization in `db/core.py` to recursively inspect information_schema and determine view existence before executing index and teardown queries idempotently.
+- Restored `sys_authority_map` table mapping into primary DDL setups natively in PostgreSQL.
+- Refitted database maintenance stats inside `gui/views/system.py` with standard PostgreSQL table counts, dynamic disk bytes, and autocommit-isolated vacuuming.
+
+### Bug Fixes
+- Replaced the SQLite-style `?` parameter placeholders inside `gui/views/catalog/albums.py` and `gui/views/discover.py` with native PostgreSQL `%s` binders, unblocking view selections.
+- Expanded the album directory `GROUP BY` logic in `albums.py` to be fully compliant with ANSI SQL rules.
+
+### Features
+- Overhauled `gui/views/discover.py` to route candidate scoring results through a thread-safe `pipeline_finished` Qt Signal, unblocking pipeline execution and visual card rendering. (I'm finally able to get recs in there now)
+- Connected `RecordingsView`, `ArtistsView`, and `AlbumsView` to the global `signals.ingestion_finished` signal to enable instant, automatic catalog reloads upon task completion.
+
+### Features
+- Fully integrated `signals.ingestion_finished` signal bindings directly inside `gui/views/catalog/recordings.py`, `gui/views/catalog/artists.py`, and `gui/views/catalog/albums.py`.
+- Corrected the PostgreSQL column grouping rules inside `artists.py`'s directory reload routine.
+
+### Features
+- Overhauled `services/discover.py` to calculate dynamic, database-driven collector scores and exponential time-based fatigue decay.
+- Wired transitive union-find equivalence clusters into active Discovery Crate candidate checks to match candidates with owned tracks/albums.
+- Redesigned `generate_seed_candidates_if_empty()` to evaluate the user's most representative library genres when choosing candidate seeds.
+- Corrected leading-article normalization inside `utils/text.py` to ensure internal occurrences of the word "the" remain un-stripped.
+
+### Features
+- Protected parallel child workers by dynamically loading PySide6 GUI views inside `main.py` strictly on parent threads, completely resolving Windows multiprocessing launch locks.
+- Delivered the complete, verified, and copy-pasteable implementation of `gui/views/discover.py` to restore execution state stability.
+
+### Bug Fixes
+- Updated views/ops/repair.py to the new Postgres format
+
+### Bug Fixes
+- Relocated and redesigned database alterations in `db/core.py` to run dynamically outside view checks, ensuring new columns (`genre`, `subgenre`, and `normalized_name`) and their indices are created successfully even if views are already present on disk.
+- Added a startup artist casing backfill in `db/core.py` to cleanly align existing artist rows with the fast O(1) indexed lookup scheme.
+
+### Bug Fixes
+- Fixed a silent join datatype mismatch in `_load_siblings` query (joining UUID VARCHAR to FLOAT quality_score) that aborted active PostgreSQL transactions and caused subsequent metadata lock queries to crash.
+- Enclosed the layout item select loop in `_on_issue_selected` within a transaction savepoint block to isolate query exceptions.
+
+### Features
+- Overhauled `reclassify_all_library_taxonomies` inside `services/tax.py` to compile and commit database re-classifications in transaction-safe, chunked batches (batch_size=500) rather than a single long-running loop.
+
+### Features
+- Added a new module gui/widgets/common.py to house resuable workbench widgets
+- Added a gitginore
+
+### Bug Fixes
+- db/core.py now features dynamic safe-exception handling when attempting to establish the vector DDL extension. This prevents initialization crashes on standard PostgreSQL setups that do not have pgvector loaded [db/core.py].
+- services/tax.py has been optimized by pruning the deprecated mock indexing metadata subclasses (MockNodeIndex, MockHierarchyIndex, MockSemanticIndex), simplifying your taxonomy layer to a streamlined, flat weighted consensus service [services/tax.py].
+- Updated services/enrich/pipe.py, utils/net.py, and config/settings.py updated with robust rate-limiting consolidations and dynamic worker telemetry.
+
+### Features
+- in fpcalc.py: Added URLs and handling for macOS, standard Linux x86_64, and Linux ARM64 (aarch64) in addition to Windows, Added support for extracting and flattening .tar.gz archives using Python's native tarfile module for macOS/Linux downloads, matching the .zip extraction used for Windows, Explicitly sets standard Unix file executable permissions (0o755 / chmod +x) on target binaries after extraction on non-Windows environments to prevent silent ingestion exceptions during filesystem parsing.
+- in albums.py Removed redundant, duplicate definitions of KeyValueRow and InspectorCard [gui/views/catalog/albums.py]. Refactored the module to import KeyValueRow, InspectorCard, and format_duration from the newly unified gui.widgets.common module, cutting down duplicate GUI rendering code.
+- artists.py: Removed redundant, duplicated layout classes for KeyValueRow and InspectorCard [gui/views/catalog/artists.py]. Refactored the workspace to import its inspect card frames and information rows from gui.widgets.common
+- in recordings.py: Removed locally duplicated definitions of format_duration, KeyValueRow, and InspectorCard [gui/views/catalog/recordings.py]. Refactored the file to import these core layout components and utility formatters directly from gui.widgets.common, reducing codebase repetition.
+
+### Features
+- Updated views/discovery.py:  Increased candidates limit, made the candidate cards more compact, made buttons smaller.
+
+Introduces the automated background web crawler daemon and adaptive discovery feedback loop.
+
+- **Background Crawler Daemon**: Implements an asynchronous, non-blocking background crawler thread (`services/crawl.py`) that extracts seed artists from the local library and queries the Wikidata SPARQL genre-network graph to discover new release candidates.
+- **Adaptive UI Feedback Loop**: Connects Discovery UI actions (`ACC`, `IGN`, `SNZ`) to the crawling frontier (`sys_crawl_frontier` database table), dynamically boosting or decaying seed priorities based on active user feedback.
+- **Post-Enrichment Automated Sync**: Integrates a post-enrichment hook (`update_acquired_candidates_from_library`) at the end of the Stage B pipeline to immediately mark matching discovery candidates as `ACQUIRED` (owned), removing them from the active recommendation crate.
+- **Anti-Live & Genre Gating**: Restricts candidate intake using customizable genre targets and a comprehensive keyword live-album blocklist.
+- **Sleek Telemetry Indicators**: Establishes `CrawlerTelemetryEvent` on the central event bus, feeding live active crawler seeds, queue sizes, and provider circuit-breaker stats to the Discovery and System Health dashboards.

@@ -1,0 +1,17 @@
+# ==========================================================================================
+# FILE: .gitignore
+# ==========================================================================================
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Local workstation bins & caches
+.bin/
+data/
+.venv/
+.env

@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mdms"
+version = "5.0.0"
+description = "Music Data Management System Workstation"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PySide6>=6.5.0",
+    "SQLAlchemy>=2.0.0",
+    "Alembic>=1.11.0",
+    "python-dotenv>=1.0.0",
+    "psutil>=5.9.0",
+    "pyyaml>=6.0",
+    "soundfile>=0.12.0",
+    "mutagen>=1.46.0",
+    "numpy>=1.24.0",
+    "sentence-transformers>=2.2.0",
+    "torch>=2.0.0",
+    "networkx>=3.0",
+    "rapidfuzz>=3.0.0",
+    "httpx>=0.24.0",
+    "diskcache>=5.6.0",
+    "towncrier>=23.6.0",
+    "scalene>=1.5.0",
+    "pytest>=7.3.0",
+    "watchdog>=6.0.0",
+    "h2>=4.4.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["config*", "db*", "domain*", "utils*", "services*", "gui*"]
+
+[tool.towncrier]
+package = "mdms"
+filename = "CHANGELOG.md"
+directory = "news"
+title_format = "## [{version}] - {project_date}"
+issue_format = "[#{issue}](https://github.com/mdms/mdms/issues/{issue})"
+
+[[tool.towncrier.type]]
+directory = "feature"
+name = "Features"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "bugfix"
+name = "Bug Fixes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "doc"
+name = "Documentation"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "removal"
+name = "Deprecations & Removals"
+showcontent = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
